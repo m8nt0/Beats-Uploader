@@ -6,11 +6,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-
-SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
 
 def create_video(audio_path, image_path, output_path):
     input_audio = ffmpeg.input(audio_path)
@@ -21,29 +16,48 @@ def create_video(audio_path, image_path, output_path):
         .run()
     )
 
-def authenticate_youtube():
-    flow = InstalledAppFlow.from_client_secrets_file('client_secret.json', SCOPES)
-    credentials = flow.run_console()
-    return build('youtube', 'v3', credentials=credentials)
+def upload_to_youtube(username, password, video_path, title, description, tags):
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+    driver.get('https://www.youtube.com/')
+    
+    # Log in
+    driver.find_element(By.XPATH, '//yt-formatted-string[text()="Sign in"]').click()
+    time.sleep(3)
+    
+    driver.find_element(By.XPATH, '//input[@type="email"]').send_keys(username)
+    driver.find_element(By.XPATH, '//input[@type="email"]').send_keys(Keys.RETURN)
+    time.sleep(3)
+    
+    driver.find_element(By.XPATH, '//input[@type="password"]').send_keys(password)
+    driver.find_element(By.XPATH, '//input[@type="password"]').send_keys(Keys.RETURN)
+    time.sleep(5)  # Wait for login to complete
+    
+    # Upload video
+    driver.get('https://www.youtube.com/upload')
+    time.sleep(5)
+    
+    driver.find_element(By.XPATH, '//input[@type="file"]').send_keys(video_path)
+    time.sleep(5)
+    
+    driver.find_element(By.XPATH, '//input[@placeholder="Add a title that describes your video"]').send_keys(title)
+    driver.find_element(By.XPATH, '//textarea[@placeholder="Tell viewers about your video"]').send_keys(description)
+    
+    for tag in tags:
+        driver.find_element(By.XPATH, '//input[@aria-label="Tags"]').send_keys(tag + ', ')
+    
+    time.sleep(3)
+    driver.find_element(By.XPATH, '//button[contains(text(), "Next")]').click()
+    time.sleep(3)
+    driver.find_element(By.XPATH, '//button[contains(text(), "Next")]').click()
+    time.sleep(3)
+    driver.find_element(By.XPATH, '//button[contains(text(), "Next")]').click()
+    time.sleep(3)
+    driver.find_element(By.XPATH, '//button[contains(text(), "Public")]').click()
+    driver.find_element(By.XPATH, '//button[contains(text(), "Done")]').click()
+    time.sleep(5)
 
-def upload_to_youtube(video_path, title, description, tags):
-    youtube = authenticate_youtube()
-    request = youtube.videos().insert(
-        part="snippet,status",
-        body={
-            "snippet": {
-                "title": title,
-                "description": description,
-                "tags": tags
-            },
-            "status": {
-                "privacyStatus": "public"
-            }
-        },
-        media_body=MediaFileUpload(video_path)
-    )
-    response = request.execute()
-    print(f'YouTube Video uploaded: {response}')
+    driver.quit()
+    print(f'YouTube Video uploaded: {video_path}')
 
 def upload_to_instagram(username, password, video_path, title, description, tags):
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
@@ -98,7 +112,7 @@ def upload_to_tiktok(username, password, video_path, title, description, tags):
     driver.quit()
     print(f'TikTok Video uploaded: {video_path}')
 
-def process_folder(folder_path, instagram_credentials, tiktok_credentials):
+def process_folder(folder_path, instagram_credentials, tiktok_credentials, youtube_credentials):
     audio_path = os.path.join(folder_path, 'beat.mp3')
     image_path = os.path.join(folder_path, 'image.jpg')
     video_path = os.path.join(folder_path, 'video.mp4')
@@ -108,7 +122,7 @@ def process_folder(folder_path, instagram_credentials, tiktok_credentials):
     description = f'{title} - produced by Beatmaker'
     tags = ['beat', 'music', 'hiphop']  # Customize this as needed
 
-    upload_to_youtube(video_path, title, description, tags)
+    upload_to_youtube(youtube_credentials['username'], youtube_credentials['password'], video_path, title, description, tags)
     upload_to_instagram(instagram_credentials['username'], instagram_credentials['password'], video_path, title, description, tags)
     upload_to_tiktok(tiktok_credentials['username'], tiktok_credentials['password'], video_path, title, description, tags)
 
@@ -122,11 +136,15 @@ def main():
         'username': 'your_tiktok_username',
         'password': 'your_tiktok_password'
     }
+    youtube_credentials = {
+        'username': 'your_youtube_username',
+        'password': 'your_youtube_password'
+    }
 
     for folder_name in os.listdir(root_dir):
         folder_path = os.path.join(root_dir, folder_name)
         if os.path.isdir(folder_path):
-            process_folder(folder_path, instagram_credentials, tiktok_credentials)
+            process_folder(folder_path, instagram_credentials, tiktok_credentials, youtube_credentials)
 
 if __name__ == '__main__':
     main()
